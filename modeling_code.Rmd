@@ -1,0 +1,149 @@
+---
+title: "Womens Rights and Terrorism Analysis"
+author: "Sophia Deng, Kat Fan, Jiayu Li, Siyuan Lu, and Angela Zhao"
+date: "2023-12-19"
+output:
+   pdf_document: default
+---
+
+```{r setup, include=FALSE}
+# Packages to include that are needed for setup
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(haven)
+# Library Countrycode is used to convert the country code to a country 
+library(countrycode)
+library(MASS)
+```
+
+
+Loading data:
+```{r}
+rep_dataset <- read_dta("jfh_replicationdataset.dta")
+```
+
+## Analysis 1
+### Poisson v. Binomial Regression
+
+```{r}
+# poisson
+poisson_model <- glm(terrordomestic ~ physint + womenscale + xconst + lngdp + lnpop + coldwar, data = rep_dataset, family = poisson())
+
+summary(poisson_model)
+
+# negbin
+negbin_model <- glm.nb(terrordomestic ~ physint + womenscale + xconst + lngdp + lnpop + coldwar, data = rep_dataset)
+
+summary(negbin_model)
+
+
+```
+
+
+## Analysis 2
+### Regressing terrordomestic for high women's rights countries 
+```{r}
+# terrordomestic regressed on physint womenscale xconst lngdp lnpop coldwar, fe
+rep_women_9<- rep_dataset[rep_dataset$womenscale>=7,]
+new_lm <- lm(terrordomestic ~ physint + womenscale + xconst + lngdp + lnpop + coldwar,data = rep_women_9)
+print(summary(new_lm))
+
+```
+
+## Analysis 3
+### Regressing terrordomestic for low women's rights countries 
+```{r}
+rep_women_9<- rep_dataset[rep_dataset$womenscale<=3,]
+new_lm <- lm(terrordomestic ~ physint + womenscale + xconst + lngdp + lnpop + coldwar,data = rep_women_9)
+print(summary(new_lm))
+
+```
+
+
+## Analysis 4
+### Regressing transnational terrorism for low women's rights countries 
+```{r}
+rep_women_9<- rep_dataset[rep_dataset$womenscale<=3,]
+new_lm <- lm(transevents ~ physint + womenscale + xconst + lngdp + lnpop + coldwar,data = rep_women_9)
+print(summary(new_lm))
+
+```
+
+## Analysis 5
+### Regressing transnational terrorism for high women's rights countries
+```{r}
+rep_women_9<- rep_dataset[rep_dataset$womenscale>=7,]
+new_lm <- lm(transevents ~ physint + womenscale + xconst + lngdp + lnpop + coldwar,data = rep_women_9)
+print(summary(new_lm))
+
+```
+
+
+## Analysis 6
+### Graph of regression of womens rights against domestic terrorism based on countries with high correlation
+```{r}
+df <- data.frame()
+all_countries <- unique(rep_dataset$ccode)
+n <- length(all_countries)
+w_i <- rep(NA,n )
+w_s <- rep(NA,n)
+
+# translating COW code to country name 
+df <- data.frame(women_terrorism_intercept = w_i,women_terrorism_slope = w_s, COWcode = all_countries)
+df$countryname <- countrycode(df$COWcode, "cown", "country.name")
+
+for (i in 1:n){
+  curr_country <- all_countries[i]
+  domestic_i <- rep_dataset$terrordomestic[rep_dataset$ccode==curr_country]
+  womenscale_i <- rep_dataset$womenscale[rep_dataset$ccode==curr_country]
+  lm_res <- lm(domestic_i ~ womenscale_i)
+  df$women_terrorism_intercept[i] <- coef(lm_res)["(Intercept)"]
+  df$women_terrorism_slope[i] <-coef(lm_res)["womenscale_i"]
+}
+df <- na.omit(df)
+# Getting the top ten highest positively correlated countries
+df_top_10 <- df[order(df$women_terrorism_slope,decreasing=TRUE),]
+df_top_10 <- df_top_10[1:10,]
+p <- ggplot(data = df_top_10)
+p <- p + geom_col(aes(x = reorder(countryname,women_terrorism_slope), y = women_terrorism_slope,fill = countryname))
+p <- p + theme_bw()
+p <- p + theme(axis.text.x=element_text(angle=60,hjust=1)) 
+p <- p + xlab("Country")
+p <- p + ylab("Women's Rights v. Terrorism Slope")
+show(p)
+
+```
+
+### Graph of regression of womens rights against domestic terrorism based on countries with low correlation
+```{r}
+
+df <- na.omit(df)
+df_bottom_10 <- df[order(df$women_terrorism_slope,decreasing=FALSE),]
+
+# Getting the top ten lowest correlated countries
+df_bottom_10 <- df_bottom_10[1:10,]
+p <- ggplot(data = df_bottom_10)
+p <- p + geom_col(aes(x = reorder(countryname,women_terrorism_slope), y = women_terrorism_slope,fill = countryname))
+p <- p + theme_bw()
+p <- p + theme(axis.text.x=element_text(angle=60,hjust=1)) 
+p <- p + xlab("Country")
+p <- p + ylab("Women's Right v. Terrorism Slope")
+
+show(p)
+
+```
+
+
+## Determining how many unique Countries there are:
+```{r}
+cat('There are', length(unique(rep_dataset$ccode)),'unique Country IDs \n')
+ccode_factor <- table(rep_dataset$ccode)
+count_df <- as.data.frame(ccode_factor)
+kable(list(count_df[1:30,],count_df[31:60,],count_df[61:90,],count_df[91:120,],count_df[121:150,]), col.names = c("CCode","Count"),row.names = FALSE )%>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
